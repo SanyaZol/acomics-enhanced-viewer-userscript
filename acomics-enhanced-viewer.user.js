@@ -6,7 +6,7 @@
 // @icon            https://acomics.ru/favicon.ico
 // @homepageURL     https://greasyfork.org/ru/scripts/10521
 // @namespace       Sanya_Zol
-// @version         0.1.0-rc.2+inject
+// @version         0.2.0
 // @include         http://acomics.ru/*
 // @include         https://acomics.ru/*
 // @run-at          document-end
@@ -19,9 +19,11 @@
 #########################       вместо README.md       #########################
 ################################################################################
 
+**[Тема на форуме acomics.ru](http://acomics.ru/forum/index.php?showtopic=2785)**
+
 Описание
 ====================
-Улучшеный просмотрщик комиксов для сайта [http://acomics.ru/](acomics.ru)
+Улучшеный просмотрщик комиксов для сайта [acomics.ru](http://acomics.ru/)
 
 * **Быстрый переход** между страницами нажатием стрелок [˂], [˃]
 * **Скриптовая прокрутка** стрелками [˄], [˅]
@@ -31,6 +33,8 @@
 * **Отключение уменьшения изображения**
     Некоторые комиксы, например [этот](http://acomics.ru/~unsounded/1), автоматически уменьшаются, что не есть хорошо. В частности, [тема поднималась в этом обсуждении](http://acomics.ru/forum/index.php?showtopic=2441&st=345&p=242192#entry242192):
     *> Можно увеличить max-width под комикс? Unsounded со своими 1024 все еще масштабируется в минус.*
+* **Удаление белого фона**
+    Заметно например в [этом](http://acomics.ru/~DROW/1) комиксе
 
 Как пользоваться
 ====================
@@ -54,16 +58,7 @@
 Shift+[˄] или Shift+[˅] - переключение режима прокрутки вверх-вниз (браузер / скрипт, по умолчанию "скрипт")
 Ctrl+[˄] или Ctrl+[˅] - плавная прокрутка (при режиме прокрутки "скрипт")
 
-
 Номер страницы автоматически сохраняется.
-
-Если вдруг вам надо поменять номер страницы - это можно сделать довольно несложным способом (не знаю куда кнопку прицепить):
-1. Запускаем читалку нажатием кнопки. **Читалка должна быть запущена, чтобы это работало.**
-2. Открываем "Инструменты разработчика" (Developer's Tools), это можно сделать, нажав `Ctrl+Shift+I` **или** кликнув на странице правой кнопкой и выбрав "Проинспектировать элемент" (Inspect Element).
-3. Идем на вкладку "Консоль" (Console).
-4. *На вкладке консоли в зависимости от браузера вас может встретить предупреждение, блокирующее вставку или консоль.*
-5. Вводим (или вставляем) туда `z_SetPage();` и жмем Enter.
-6. Вводим в поле новый номер страницы.
 
 Прочее
 ====================
@@ -103,6 +98,9 @@ var a = hereDoc(function() {/*!
 
 var PAGE = {}; // не трогать. так надо.
 
+PAGE.blockUnload = false;
+// Блокировать случайное закрытие страницы
+
 PAGE.AjaxRequestTimeoutMs=10000;
 // таймаут запроса в милисекундах (секундах*1000)
 
@@ -132,11 +130,21 @@ PAGE.visualLog = false;
 PAGE.localStorageKeyPrefix = '**zol**page**';
 // префикс хранилища html5 (которое localStorage и sessionStorage)
 
-PAGE.init = function(){
+
+PAGE.log = function(s){ console.log('[PAGE] '+s); };
+
+PAGE.preInit = function(){
+	if( PAGE.preInitFailed ){return;}
+	PAGE.preInitFailed = true;
 	
 	// var m = /^\/~([^/]+)\/(.*)$/.exec( location.pathname.toString() );
 	var m = /^\/~([^\/]+)\/(\d*)(?:\D|$)/.exec( location.pathname.toString() );
 	if(!m){return;}
+	
+	if(!window.$){
+		PAGE.log('preInit failed: where is my $, billy ??');
+		return;
+	}
 	
 	// parse page info
 	PAGE.comicsName = m[1];
@@ -150,12 +158,74 @@ PAGE.init = function(){
 	
 	// if( PAGE.contentMarginMover ){ PAGE.$contentMargin }
 	
-	PAGE.init = function(){};
 	PAGE.makeUrl = function(id){
 		return '/~'+PAGE.comicsName+'/'+id;
 	};
 	
+	// stored shit
+	PAGE.localStorageKey = PAGE.localStorageKeyPrefix + PAGE.comicsName;
+	PAGE.localStorageKeyPage = PAGE.localStorageKey + '*';
+	
+	PAGE.store = function(){
+		window.localStorage.setItem( PAGE.localStorageKey, PAGE.comicsPage );
+	};
+	
+	var stored = window.localStorage.getItem( PAGE.localStorageKey );
+	if(stored){ stored = parseInt(stored,10)||false; } else {stored=false;}
+	if( stored && (stored != PAGE.comicsPage) ){
+		// location.href = PAGE.makeUrl(stored);return;
+		PAGE.wantPage = stored;
+	} else {
+		PAGE.wantPage = PAGE.comicsPage;
+	}
+	PAGE.stored = stored;
+	delete stored;
+	
+	var curr = PAGE.parsePageString( $('html')[0].outerHTML );
+	if( !curr ){ return; }
+	
+	PAGE.comicsLastPage = curr.LastPage;
+	PAGE.comicsPageTitle = curr.Title;
+	
+	PAGE.init_comicsPage = PAGE.comicsPage;
+	PAGE.init_wantPage = PAGE.wantPage;
+	
+	if(PAGE.comicsPage != curr.Page){
+		if(
+			confirm(
+				'Что-то пошло не так.'
+				+'\n'
+				+'\n[1] Сохраненная страница:\t'+PAGE.comicsPage
+				+'\n[2] Страница комикса (html):\t'+curr.Page
+				+'\n[3] Максимальная страница (html):\t'+PAGE.comicsLastPage
+				+'\n'
+				+'\nЗаменить сохраненную страницу '+PAGE.comicsPage+' на '+curr.Page+'?'
+			)
+		){
+			PAGE.wantPage = PAGE.comicsPage = curr.Page;
+			PAGE.store();
+			location.href = PAGE.makeUrl(PAGE.comicsPage);
+		}
+		return;
+	}
+	
+	PAGE.tmp_curr = curr;
+	// PAGE.putCached( PAGE.comicsPage, curr );
+	// PAGE.putCached( PAGE.tmp_curr.Page, PAGE.tmp_curr ); delete PAGE.tmp_curr;
+	delete curr;
+	
+	PAGE.preInit = function(){return true;};
+	return true;
+};
+PAGE.preInitFailed = false;
 
+
+
+PAGE.init = function(){
+	if( !PAGE.preInit() ){return;}
+	
+	PAGE.init = function(){};
+	
 	if( PAGE.visualLog ){
 		(function(){
 			var d = $('<div/>');
@@ -181,22 +251,38 @@ PAGE.init = function(){
 				console.log('[PAGE] '+s);
 			};
 		})();
-	} else {
-		PAGE.log = function(s){
-			console.log('[PAGE] '+s);
-		};
 	}
 	
+	PAGE.noPushState = false;
+	PAGE.firstPushState = true;
 	PAGE.changeHandlers = function(){
 		PAGE.store();
 		PAGE.ShouldIDoSomething();
 		// history.pushState({}, , location.href);
-		history.pushState({page:PAGE.comicsPage}, '#'+PAGE.comicsPage+' | '+PAGE.comicsPageTitle, PAGE.makeUrl(PAGE.comicsPage));
+		if( PAGE.noPushState ){
+			PAGE.noPushState = false;
+		} else {
+			// if( PAGE.firstPushState ){
+				// PAGE.firstPushState = false;
+				// history.replaceState(
+					// {page:PAGE.comicsPage},
+					// '#'+PAGE.comicsPage+' | '+PAGE.comicsPageTitle,
+					// PAGE.makeUrl(PAGE.comicsPage)
+				// );
+			// } else {
+				history.pushState(
+					{page:PAGE.comicsPage},
+					'#'+PAGE.comicsPage+' | '+PAGE.comicsPageTitle,
+					PAGE.makeUrl(PAGE.comicsPage)
+				);
+			// }
+		}
 	};
 	$(window).on('popstate', function(e){
 		var d = e.originalEvent.state || false;
 		if(d && d.page){
 			PAGE.wantPage = d.page;
+			PAGE.noPushState = true;
 			PAGE.ShouldIDoSomething();
 		}
 	});
@@ -214,11 +300,6 @@ PAGE.init = function(){
 		}
 	};
 	
-	// stored shit
-	PAGE.localStorageKey = PAGE.localStorageKeyPrefix + PAGE.comicsName;
-	PAGE.localStorageKeyPage = PAGE.localStorageKey + '*';
-	
-	
 	PAGE.SessCacheQuery = function(page){
 		var r = window.sessionStorage.getItem( PAGE.localStorageKeyPage + page );
 		if(!r)return false;
@@ -233,11 +314,7 @@ PAGE.init = function(){
 		var d = JSON.stringify( data );
 		window.sessionStorage.setItem( PAGE.localStorageKeyPage + page , d );
 	};
-	
-	
-	PAGE.store = function(){
-		window.localStorage.setItem( PAGE.localStorageKey, PAGE.comicsPage );
-	};
+
 	window.eval('window.z_SetPage=function(){ $(window).trigger(\''+
 		PAGE.localStorageKeyPrefix+':setpage'
 	+'\') };')
@@ -255,44 +332,14 @@ PAGE.init = function(){
 	};
 	$(window).on(PAGE.localStorageKeyPrefix+':setpage',PAGE.storePage);
 	
-	var stored = window.localStorage.getItem( PAGE.localStorageKey );
-	if(stored){ stored = parseInt(stored)||false; } else {stored=false;}
-	if( stored && (stored != PAGE.comicsPage) ){
-		location.href = PAGE.makeUrl(stored);
-		return;
-	}
-	PAGE.stored = stored;
-	delete stored;
 	
-	var curr = PAGE.parsePageString( $('html')[0].outerHTML );
-	if( !curr ){ return; }
-	
-	PAGE.comicsLastPage = curr.LastPage;
-	PAGE.comicsPageTitle = curr.Title;
-	
-	if(PAGE.comicsPage != curr.Page){
-		if(
-			confirm(
-				'Что-то пошло не так.'
-				+'\n'
-				+'\n[1] Сохраненная страница:\t'+PAGE.comicsPage
-				+'\n[2] Страница комикса (html):\t'+curr.Page
-				+'\n[3] Максимальная страница (html):\t'+PAGE.comicsLastPage
-				+'\n'
-				+'\nЗаменить сохраненную страницу '+PAGE.comicsPage+' на '+curr.Page+'?'
-			)
-		){
-			PAGE.wantPage = PAGE.comicsPage = curr.Page;
-			PAGE.store();
-			location.href = PAGE.makeUrl(PAGE.comicsPage);
-		}
-		return;
-	}
-	
-	
-	PAGE.wantPage = PAGE.comicsPage;
+	// PAGE.wantPage = PAGE.comicsPage;
 	setTimeout(function(){
-		PAGE.swapPage();
+		if( PAGE.wantPage == PAGE.comicsPage ){
+			PAGE.swapPage();
+		} else {
+			PAGE.ShouldIDoSomething();
+		}
 	},1);
 	
 	
@@ -313,9 +360,10 @@ PAGE.init = function(){
 		
 		// title
 		PAGE.comicsPageTitle = o.Title;
+		PAGE.comicsPage = page;
+		
 		document.title = '#'+PAGE.comicsPage+' | '+PAGE.comicsPageTitle;
 		
-		PAGE.comicsPage = page;
 		// $(window).scrollTop(0);
 		PAGE.scroll(false, 0);
 		PAGE.changeHandlers();
@@ -323,7 +371,7 @@ PAGE.init = function(){
 	
 	PAGE.plData = Object.create(null);
 	
-	PAGE.wantPage = PAGE.comicsPage;
+	// PAGE.wantPage = PAGE.comicsPage;
 	
 	PAGE.putCached = function(page,data){
 		PAGE.plData[ page ] = data;
@@ -356,8 +404,6 @@ PAGE.init = function(){
 		PAGE.plData[ page ].DomImage.src = PAGE.plData[ page ].Image;
 		setTimeout(function(){ log=true; },30);
 	};
-	PAGE.putCached( PAGE.comicsPage, curr );
-	delete curr;
 	
 	PAGE.$contentMargin = $('#contentMargin');
 	PAGE.$content = $('#content');
@@ -375,9 +421,20 @@ PAGE.init = function(){
 	$('<style/>').attr('type','text/css').html(''
 		+' #content.notitle h3.serial {display:none;}'
 		+' section.issue img {max-width: none;}'
-		+' div#container { width: auto; display:inline-block; min-width:'+$('div#container').css('width')+' }' // background-color: transparent;
+		+' div#container { width: auto; display:inline-block; min-width:'+$('div#container').css('width')+';'
+		+' background-color: transparent; } '
+		+' #contentMargin {background:#fff; min-height: 0px !important; padding:20px; margin:0px auto; border-radius:4px;} '
+		// outline:20px #fff solid;
+		+' nav.issue > table { width:auto; margin-right:auto; margin-left:auto; } '
+		+' nav.issue>table>tbody>tr>td:nth-child(odd) { display:none; } '
+		+' nav.issue>table>tbody>tr>td:nth-child(2)>.button { display:none; } '
+		+' nav.issue>table>tbody>tr>td:nth-child(2)>.button.large, nav.issue>table>tbody>tr>td:nth-child(2)>.button.center { display:inline-block; } '
+		+' footer#common {background:#fff;} '
 		+' #background{text-align:center;}'
 		+' #container{text-align:left;}'
+		+' #content > div.serial-nomargin > section.issue { width: auto !important; display:inline-block !important; } '
+		+' #content > div.serial-nomargin { text-align: center; } #content > div.serial-nomargin>* { text-align: left; } '
+		+' footer#common, footer#common>div.inner {border-radius:4px} '
 	).appendTo('body');
 	
 	// $('#content > div.serial-nomargin > h3.serial').remove();
@@ -401,7 +458,7 @@ PAGE.init = function(){
 		if( !PAGE.gcAllowed ){ return; }
 		
 		var r = PAGE.populateList(5);
-		r.push( PAGE.comicsPage );
+		r.push( PAGE.wantPage );
 		for( var page in PAGE.plData ){
 			page = parseInt(page,10);
 			if( $.inArray( page, r ) == -1 ){
@@ -452,7 +509,7 @@ PAGE.init = function(){
 		}
 		if( PAGE.wantPage != PAGE.comicsPage ){
 			if(!PAGE.swapPage()){
-				PAGE.log('page.cache: requesting non-preloaded page #'+page);
+				PAGE.log('page.cache: requesting non-preloaded page #'+PAGE.wantPage);
 				PAGE.ajaxPreload( PAGE.wantPage );
 				return true;
 			}
@@ -483,13 +540,13 @@ PAGE.init = function(){
 	PAGE.populateList = function(Add){
 		var a = [];
 		for( var i=1; i<=(4+Add); i++ ){
-			var np = PAGE.comicsPage+i;
+			var np = PAGE.wantPage+i;
 			if( np <= PAGE.comicsLastPage ){
 				a.push(np);
 			}
 		}
 		for( var i=1; i<=(2+Add); i++ ){
-			var np = PAGE.comicsPage-i;
+			var np = PAGE.wantPage-i;
 			if( np >= 1 ){
 				a.push(np);
 			}
@@ -611,9 +668,14 @@ PAGE.init = function(){
 		}
 	});
 	
-	$(window).on('beforeunload', function(){
-		return 'You shall not pass.';
-	});
+	if( PAGE.blockUnload ){
+		$(window).on('beforeunload', function(){
+			return 'You shall not pass.';
+		});
+	}
+	
+	// last
+	PAGE.putCached( PAGE.tmp_curr.Page, PAGE.tmp_curr ); delete PAGE.tmp_curr;
 	
 	PAGE.log('init');
 };
@@ -703,36 +765,73 @@ PAGE.parsePageString = function(s){
 
 (function(){
 	
-	var m = /^\/~([^\/]+)\/(\d*)(?:\D|$)/.exec( location.pathname.toString() );
-	if(!m){return;}
+	if( !PAGE.preInit() ){return;}
 	
-	if(!window.$){
-		console.log('where is my $, billy ??');
-		return;
+	var current = (PAGE.init_comicsPage == PAGE.init_wantPage);
+	var label = 'Запуск читалки';
+	if( !current ){
+		label = 'Продолжить чтение (стр. '+PAGE.init_wantPage+')';
 	}
-	
 	var d = $('<div/>');
-	var b = $('<button/>');
-	b.html('Запуск читалки').click(function(){
+	
+	$('<button/>').html('&times;').css({
+		color:'#F00',fontWeight:'bold',fontSize:'16px',
+		position:'absolute',left:'-10px',top:'-10px',width:'20px',height:'20px',padding:'1px'
+	}).click(function(){
+		d.remove();
+	}).appendTo(d);
+	
+	
+	$('<button/>').html(label).css({
+		fontSize:'14px'
+	}).click(function(){
 		d.remove();
 		PAGE.init();
 		// w.history.pushState({a:location.href}, "* Супер-читалка", location.href);
 	}).appendTo(d);
+	if( !current ){
+		d.append('<div>Произойдет переход на стр. '+PAGE.init_wantPage+'</div>');
+		$('<button/>').html(
+			'Читать со страницы '+PAGE.init_comicsPage+''
+		).css({
+			fontSize:'12px'
+		}).click(function(){
+			if(confirm(''
+				+'Вы собираетесь удалить закладку со страницы '+PAGE.init_wantPage
+				+'\nи продолжить чтение со страницы '+PAGE.init_comicsPage
+				+'\n\nВсё верно?'
+			)){
+				PAGE.wantPage = PAGE.comicsPage = PAGE.init_comicsPage;
+				// PAGE.store();
+				// location.href = PAGE.makeUrl(PAGE.comicsPage);
+				d.remove();
+				PAGE.init();
+			}
+		}).appendTo(d);
+		d.append('<div style="font-size:10px;">Закладка со стр. '+PAGE.init_wantPage+' будет удалена.</div>');
+	}
 	d.css({
 		borderRadius:'4px',
 		position:'fixed', // absolute
 		zIndex:1e6,
-		right:'2px',
-		top:'2px',
+		right:'3px',
+		top:'3px',
 		padding:'4px',
 		background:'rgba(0,0,0,0.6)',
+		color:'#fff',
 		border:'2px rgba(0,0,0,0.9) solid'
 	}).appendTo('body');
+	setTimeout(function(){
+		var inner = $('header#common > div.inner');
+		if(!inner.length)return;
+		if( d.offset().left < ( inner.offset().left + inner.width() + 55 ) ){
+			d.css({ top: Math.round( inner.height() + 3 )+'px' })
+		}
+	},1);
 })();
 
 
 */});
-var s=document.createElement('script');s.type='text/javascript';s.innerHTML=a;document.body.appendChild(s);
-// textContent instead of innerHTML?
+var s=document.createElement('script');s.type='text/javascript';s.innerHTML=a;document.body.appendChild(s); // textContent instead of innerHTML?
 
 })();
