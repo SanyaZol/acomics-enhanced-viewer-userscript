@@ -5,8 +5,9 @@
 // @license         Public domain
 // @icon            https://acomics.ru/favicon.ico
 // @homepageURL     https://greasyfork.org/ru/scripts/10521
+// @supportURL      https://greasyfork.org/ru/scripts/10521
 // @namespace       Sanya_Zol
-// @version         0.2.0
+// @version         0.2.1
 // @include         http://acomics.ru/*
 // @include         https://acomics.ru/*
 // @run-at          document-end
@@ -133,6 +134,10 @@ PAGE.localStorageKeyPrefix = '**zol**page**';
 
 PAGE.log = function(s){ console.log('[PAGE] '+s); };
 
+PAGE.makeUrlReference = function(id,comicsName){
+	return '/~'+comicsName+'/'+id;
+};
+
 PAGE.preInit = function(){
 	if( PAGE.preInitFailed ){return;}
 	PAGE.preInitFailed = true;
@@ -148,7 +153,7 @@ PAGE.preInit = function(){
 	
 	// parse page info
 	PAGE.comicsName = m[1];
-	var comicsPage = parseInt(m[2]);
+	var comicsPage = parseInt(m[2],10);
 	if( m[2]=='' || isNaN(comicsPage) || comicsPage<1 ) {
 		return;
 	}
@@ -763,9 +768,90 @@ PAGE.parsePageString = function(s){
 	return o;
 };
 
-(function(){
+PAGE.list2 = {};
+PAGE.list2.init = function(){
+	PAGE.list2.init = function(){};
+	if( !/\/-[A-Za-z0-9_-]+\/list2/.test(location.pathname) ){return;}
 	
-	if( !PAGE.preInit() ){return;}
+	// $('div#contentMargin > div.agrHolder >table.agr >tbody>tr:first-child>td.agrBody>div.numbers')
+	
+	var div = $('div#contentMargin > div.agrHolder');
+	if(!div.length){return;}
+	div.find('>table.agr').css({marginBottom:'4px'}).each(function(){
+		// var a = $(this).find('>tbody>tr:first-child>td.agrBody>h3>a');
+		// if(!a.length){return;}
+		// a = a[0].pathname;
+		// if( a.substr(0,2)!='/~' ){return;}
+		// a=a.substr(2);
+		var b = $(this).find('>tbody>tr:first-child>td.agrBody>div.numbers a').eq(0);
+			if(!b.length){return;}
+		b=b[0].pathname;
+		var m = /^\/~([^\/]+)\/(\d*)(?:\D|$)/.exec(b);
+		if(!m){return;}
+		
+		// parse page info
+		var comicsName = m[1];
+		var comicsPage = parseInt(m[2],10);
+		if( m[2]=='' || isNaN(comicsPage) || comicsPage<1 ) {return;}
+		
+		var k = PAGE.localStorageKeyPrefix + comicsName; // stored shit
+		var stored = window.localStorage.getItem( k );
+		if(stored){ stored = parseInt(stored,10)||false; } else {stored=false;}
+		if(!stored){return;}
+		
+		if( stored == comicsPage ){
+			$(this).css({backgroundColor:'#ccc',outline:'1px #999 solid'});
+		} else if( stored < comicsPage ){
+			$(this).css({backgroundColor:'#cff',outline:'1px #9ff solid'});
+			
+			var link = $('<a/>').addClass('agr-today').attr(
+				'href', PAGE.makeUrlReference(stored,comicsName)
+			).text(
+				'Продолжить чтение со страницы '+stored+' (из '+comicsPage+')'
+			).css({
+				fontSize:'18px'
+			});
+			$(this).find('>tbody>tr:first-child>td.agrBody>div.numbers').prepend('<hr/>').prepend(link);
+		}
+		
+		// PAGE.comicsName = m[1];
+		// var comicsPage = parseInt(m[2],10);
+	})
+};
+
+$(function(){
+	(function(){
+		// $('#common .inner td.nainmenu > nav > a[href$="/list2"]').css({backgroundColor:'#f00'});
+		var a = $('#common .inner td.logo > a');
+		var img = a.find('> img');
+		if(!img.length){return;}
+		var div = $('<div style="display:inline-block;overflow:hidden;width:55px;height:54px;height:100%;vertical-align:middle;padding-top:7px;" />');
+		img.detach();
+		div.append(img).appendTo(a);
+		$('#common .inner td.logo').css('width','auto');
+		
+		var x = $('#common .inner td.nainmenu > nav > a[href$="/list2"]');
+		
+		x.css({fontWeight:'bold'});
+		var y = $('<div/>').html('обновления').css({display:'inline-block',background:'#99f',borderRadius:'4px',border:'1px #66f solid',
+			position:'absolute',marginTop:'-12px',marginLeft:'-48px',
+			width:'64px',height:'14px',
+			fontSize:'10px',fontFamily:'sans-serif',textTransform:'none',textAlign:'center',fontWeight:'normal'
+		});
+		y.insertBefore(x.find('>span'));
+		
+		var live = $('#common .inner td.nainmenu > nav > a[href$="/live"]').contents().filter(function(){return this.nodeType === 3;}).eq(0);
+		if(live.length){ live[0].textContent='Live'; }
+		var Top = $('#common .inner td.nainmenu > nav > a[href$="//top.a-comics.ru/"]').contents().filter(function(){return this.nodeType === 3;}).eq(0);
+		if(Top.length){ Top[0].textContent='ТОП'; }
+		// window.lol_y = y;
+		// window.lol_x = x;
+	})();
+	
+	if( !PAGE.preInit() ){
+		PAGE.list2.init();
+		return;
+	}
 	
 	var current = (PAGE.init_comicsPage == PAGE.init_wantPage);
 	var label = 'Запуск читалки';
@@ -828,7 +914,7 @@ PAGE.parsePageString = function(s){
 			d.css({ top: Math.round( inner.height() + 3 )+'px' })
 		}
 	},1);
-})();
+});
 
 
 */});
