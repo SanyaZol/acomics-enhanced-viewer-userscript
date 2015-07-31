@@ -7,7 +7,7 @@
 // @homepageURL     https://greasyfork.org/ru/scripts/10521
 // @supportURL      https://greasyfork.org/ru/scripts/10521
 // @namespace       Sanya_Zol
-// @version         0.2.1
+// @version         0.2.2
 // @include         http://acomics.ru/*
 // @include         https://acomics.ru/*
 // @run-at          document-end
@@ -291,6 +291,10 @@ PAGE.init = function(){
 			PAGE.ShouldIDoSomething();
 		}
 	});
+	
+	// disable built-in navigation with left/right arrow keys.
+	// search page source for "$(document).keydown(" for more info
+	$(document).off('keydown'); // @FIX
 	
 	var $htmlbody = $('html,body');
 	PAGE.scroll = function( relative, scrollAmount ){
