@@ -7,12 +7,11 @@
 // @homepageURL     https://greasyfork.org/ru/scripts/10521
 // @supportURL      https://greasyfork.org/ru/scripts/10521
 // @namespace       Sanya_Zol
-// @version         0.2.3
+// @version         0.2.4
 // @include         http://acomics.ru/*
 // @include         https://acomics.ru/*
 // @run-at          document-end
 // @grant           none
-// @downloadURL none
 // ==/UserScript==
 
 /*
@@ -419,7 +418,7 @@ PAGE.init = function(){
 	PAGE.$contentSer = $('#content > div.serial-nomargin');
 	
 	
-	$('#common').remove();
+	$('.common').remove();
 	$('#background > div').not('#container').remove();
 	$('#container > header.serial').remove();
 	$('#container > nav.serial').remove();
@@ -438,12 +437,13 @@ PAGE.init = function(){
 		+' nav.issue>table>tbody>tr>td:nth-child(odd) { display:none; } '
 		+' nav.issue>table>tbody>tr>td:nth-child(2)>.button { display:none; } '
 		+' nav.issue>table>tbody>tr>td:nth-child(2)>.button.large, nav.issue>table>tbody>tr>td:nth-child(2)>.button.center { display:inline-block; } '
-		+' footer#common {background:#fff;} '
+		+' footer.common {background:#fff;} '
 		+' #background{text-align:center;}'
 		+' #container{text-align:left;}'
 		+' #content > div.serial-nomargin > section.issue { width: auto !important; display:inline-block !important; } '
 		+' #content > div.serial-nomargin { text-align: center; } #content > div.serial-nomargin>* { text-align: left; } '
-		+' footer#common, footer#common>div.inner {border-radius:4px} '
+		+' footer.common, footer.common>div.inner {border-radius:4px} '
+		+' div#background {margin-top:0px;padding-top:0px;} '
 	).appendTo('body');
 	
 	// $('#content > div.serial-nomargin > h3.serial').remove();
@@ -779,7 +779,7 @@ PAGE.list2.init = function(){
 	
 	// $('div.contentSerialMargin > div.agrHolder >table.agr >tbody>tr:first-child>td.agrBody>div.numbers')
 	
-	var div = $('div.contentSerialMargin > div.agrHolder');
+	var div = $('div.agrHolder');
 	if(!div.length){return;}
 	div.find('>table.agr').css({marginBottom:'4px'}).each(function(){
 		// var a = $(this).find('>tbody>tr:first-child>td.agrBody>h3>a');
@@ -825,16 +825,16 @@ PAGE.list2.init = function(){
 
 $(function(){
 	(function(){
-		// $('#common .inner td.nainmenu > nav > a[href$="/list2"]').css({backgroundColor:'#f00'});
-		var a = $('#common .inner td.logo > a');
+		// $('.common .inner td.nainmenu > nav > a[href$="/list2"]').css({backgroundColor:'#f00'});
+		var a = $('.common .inner td.logo > a');
 		var img = a.find('> img');
 		if(!img.length){return;}
 		var div = $('<div style="display:inline-block;overflow:hidden;width:55px;height:54px;height:100%;vertical-align:middle;padding-top:7px;" />');
 		img.detach();
 		div.append(img).appendTo(a);
-		$('#common .inner td.logo').css('width','auto');
+		$('.common .inner td.logo').css('width','auto');
 		
-		var x = $('#common .inner td.nainmenu > nav > a[href$="/list2"]');
+		var x = $('.common .inner td.nainmenu > nav > a[href$="/list2"]');
 		
 		x.css({fontWeight:'bold'});
 		var y = $('<div/>').html('обновления').css({display:'inline-block',background:'#99f',borderRadius:'4px',border:'1px #66f solid',
@@ -844,9 +844,9 @@ $(function(){
 		});
 		y.insertBefore(x.find('>span'));
 		
-		var live = $('#common .inner td.nainmenu > nav > a[href$="/live"]').contents().filter(function(){return this.nodeType === 3;}).eq(0);
+		var live = $('.common .inner td.nainmenu > nav > a[href$="/live"]').contents().filter(function(){return this.nodeType === 3;}).eq(0);
 		if(live.length){ live[0].textContent='Live'; }
-		var Top = $('#common .inner td.nainmenu > nav > a[href$="//top.a-comics.ru/"]').contents().filter(function(){return this.nodeType === 3;}).eq(0);
+		var Top = $('.common .inner td.nainmenu > nav > a[href$="//top.a-comics.ru/"]').contents().filter(function(){return this.nodeType === 3;}).eq(0);
 		if(Top.length){ Top[0].textContent='ТОП'; }
 		// window.lol_y = y;
 		// window.lol_x = x;
@@ -912,7 +912,7 @@ $(function(){
 		border:'2px rgba(0,0,0,0.9) solid'
 	}).appendTo('body');
 	setTimeout(function(){
-		var inner = $('header#common > div.inner');
+		var inner = $('header.common > div.inner');
 		if(!inner.length)return;
 		if( d.offset().left < ( inner.offset().left + inner.width() + 55 ) ){
 			d.css({ top: Math.round( inner.height() + 3 )+'px' })
